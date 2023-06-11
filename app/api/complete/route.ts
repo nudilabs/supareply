@@ -1,95 +1,51 @@
 import { NextResponse, type NextRequest } from "next/server"
-import { CallbackManager } from "langchain/callbacks"
-import { LLMChain } from "langchain/chains"
 import { ChatOpenAI } from "langchain/chat_models/openai"
-import {
-  ChatPromptTemplate,
-  HumanMessagePromptTemplate,
-} from "langchain/prompts"
+import { PromptTemplate } from "langchain/prompts"
 
-const prompt = ChatPromptTemplate.fromPromptMessages([
-  HumanMessagePromptTemplate.fromTemplate("{input}"),
-])
+const template = `
+    Please create a reply to the tweet below and add value.
+    {input}
+
+    % TONE
+    - Don't use any emojis or hashtags.
+    - Respond in a casual tone.
+    - Use slang and contractions but don't add apostrophes to words.
+
+    % FORMAT
+    - Keep your reply under 80 characters and in one sentence.
+    - Intentionally avoid punctuation, use incorrect grammar and use incorrect capitalization sometimes.
+    - Don't use any special characters.
+
+    YOUR REPLY:
+    `
+
+const prompt = PromptTemplate.fromTemplate(template)
 
 export async function POST(req: NextRequest) {
   try {
     const input = await req.json()
     console.log("input", input)
-    // Check if the request is for a streaming response.
-    const streaming = req.headers.get("accept") === "text/event-stream"
-    console.log("server streaming", streaming)
-    if (streaming) {
-      // For a streaming response we need to use a TransformStream to
-      // convert the LLM's callback-based API into a stream-based API.
-      const encoder = new TextEncoder()
-      const stream = new TransformStream()
-      const writer = stream.writable.getWriter()
-      console.log("creating llm")
-      const llm = new ChatOpenAI({
-        streaming,
-        callbackManager: CallbackManager.fromHandlers({
-          handleLLMNewToken: async (token: string) => {
-            await writer.ready
-            await writer.write(encoder.encode(`data: ${token}\n\n`))
-          },
-          handleLLMEnd: async () => {
-            await writer.ready
-            await writer.close()
-          },
-          handleLLMError: async (e: Error) => {
-            await writer.ready
-            await writer.abort(e)
-          },
-        }),
-      })
-      console.log("creating chain")
-      const chain = new LLMChain({ prompt, llm })
-      // We don't need to await the result of the chain.run() call because
-      // the LLM will invoke the callbackManager's handleLLMEnd() method
-      chain.call({ input }).catch((e: Error) => console.error(e))
-      console.log("returning response")
-      return new Response(stream.readable, {
-        headers: {
-          "Access-Control-Allow-Origin": "*",
-          "Access-Control-Allow-Methods": "POST, OPTIONS",
-          "Access-Control-Allow-Headers":
-            "Accept, Accept-Language, Content-Language, Content-Type",
-          "Content-Type": "text/event-stream",
-        },
-      })
-    } else {
-      // For a non-streaming response we can just await the result of the
-      // chain.run() call and return it.
-      const llm = new ChatOpenAI()
-      const chain = new LLMChain({ prompt, llm })
-      const response = await chain.call({ input })
-      // console.log(response.)
+    const llm = new ChatOpenAI({
+      temperature: 0.3,
+    })
+    const inputPrompt = await prompt.format({ input })
 
-      //   return new Response(JSON.stringify(response), {
-      //     headers: {
-      //       //   "Access-Control-Allow-Origin": "*",
-      //       //   "Access-Control-Allow-Methods": "POST",
-      //       //   // "Access-Control-Allow-Headers": "Content-Type, Authorization",
-      //       //   "Access-Control-Allow-Headers": "Origin, X-Requested-With, Content-Type, Accept",
-      //       "Content-Type": "application/json",
-      //     },
+    const response = await llm.predict(inputPrompt)
 
-      //     status: 200,
-      //   })
-      // }
-      return NextResponse.json(JSON.stringify(response), {
-        status: 200,
-        headers: {
-          "Access-Control-Allow-Origin": "*",
-          "Access-Control-Allow-Methods": "POST, OPTIONS",
-          "Access-Control-Allow-Headers":
-            "Accept, Accept-Language, Content-Language, Content-Type",
+    console.log("response: ", response)
 
-          "Content-Type": "application/json",
-          PreContinue: "true",
-        },
-      })
-    }
+    return NextResponse.json(JSON.stringify(response), {
+      status: 200,
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        "Access-Control-Allow-Headers":
+          "Accept, Accept-Language, Content-Language, Content-Type",
+
+        "Content-Type": "application/json",
+        PreContinue: "true",
+      },
+    })
   } catch (e) {
     return new Response(JSON.stringify({ error: (e as any).message }), {
       status: 500,
@@ -98,7 +54,9 @@ export async function POST(req: NextRequest) {
         "Access-Control-Allow-Methods": "POST, OPTIONS",
         "Access-Control-Allow-Headers":
           "Accept, Accept-Language, Content-Language, Content-Type",
+
         "Content-Type": "application/json",
+        PreContinue: "true",
       },
     })
   }
