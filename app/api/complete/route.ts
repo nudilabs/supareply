@@ -1,4 +1,3 @@
-import { headers } from "next/dist/client/components/headers"
 import { NextResponse, type NextRequest } from "next/server"
 import { CallbackManager } from "langchain/callbacks"
 import { LLMChain } from "langchain/chains"
@@ -14,7 +13,7 @@ const prompt = ChatPromptTemplate.fromPromptMessages([
 
 export async function POST(req: NextRequest) {
   try {
-    const { input } = await req.json()
+    const input = await req.json()
     console.log("input", input)
     // Check if the request is for a streaming response.
     const streaming = req.headers.get("accept") === "text/event-stream"
@@ -50,7 +49,13 @@ export async function POST(req: NextRequest) {
       chain.call({ input }).catch((e: Error) => console.error(e))
       console.log("returning response")
       return new Response(stream.readable, {
-        headers: { "Content-Type": "text/event-stream" },
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "POST, OPTIONS",
+          "Access-Control-Allow-Headers":
+            "Accept, Accept-Language, Content-Language, Content-Type",
+          "Content-Type": "text/event-stream",
+        },
       })
     } else {
       // For a non-streaming response we can just await the result of the
@@ -88,7 +93,13 @@ export async function POST(req: NextRequest) {
   } catch (e) {
     return new Response(JSON.stringify({ error: (e as any).message }), {
       status: 500,
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "POST, OPTIONS",
+        "Access-Control-Allow-Headers":
+          "Accept, Accept-Language, Content-Language, Content-Type",
+        "Content-Type": "application/json",
+      },
     })
   }
 }
