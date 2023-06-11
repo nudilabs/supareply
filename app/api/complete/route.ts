@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server"
+import { ENV } from "@/utils/Env"
 import { ChatOpenAI } from "langchain/chat_models/openai"
 import { PromptTemplate } from "langchain/prompts"
 
@@ -26,7 +27,7 @@ export async function POST(req: NextRequest) {
     const input = await req.json()
     console.log("input", input)
     const llm = new ChatOpenAI({
-      temperature: 0.3,
+      temperature: ENV.TEMPERATURE,
     })
     const inputPrompt = await prompt.format({ input })
 
