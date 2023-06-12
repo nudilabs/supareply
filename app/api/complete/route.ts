@@ -3,34 +3,50 @@ import { ENV } from "@/utils/Env"
 import { ChatOpenAI } from "langchain/chat_models/openai"
 import { PromptTemplate } from "langchain/prompts"
 
+const config = `% TONE
+- Don't use any emojis or hashtags.
+- Respond in a casual tone.
+- Use slang and contractions but don't add apostrophes to words.
+
+% FORMAT
+- Keep your reply under 80 characters and in one sentence.
+- Intentionally avoid punctuation, use incorrect grammar and use incorrect capitalization sometimes.
+- Don't use any special characters.
+
+YOUR REPLY:`
+
 const template = `
     Please create a reply to the tweet below and add value.
-    {input}
+    {tweet}
 
-    % TONE
-    - Don't use any emojis or hashtags.
-    - Respond in a casual tone.
-    - Use slang and contractions but don't add apostrophes to words.
+    ${config}
+    `
 
-    % FORMAT
-    - Keep your reply under 80 characters and in one sentence.
-    - Intentionally avoid punctuation, use incorrect grammar and use incorrect capitalization sometimes.
-    - Don't use any special characters.
+const templateWithReply = `
+    Please create a reply to the tweet below and add value.
+    {tweet}
 
-    YOUR REPLY:
+    I've already started the reply for you with the following text:
+    "{reply}"
+
+    ${config}
     `
 
 const prompt = PromptTemplate.fromTemplate(template)
+const promptWithReply = PromptTemplate.fromTemplate(templateWithReply)
 
 export async function POST(req: NextRequest) {
   try {
-    const input = await req.json()
-    console.log("input", input)
+    const { tweet, reply } = await req.json()
     const llm = new ChatOpenAI({
       temperature: ENV.TEMPERATURE,
     })
-    const inputPrompt = await prompt.format({ input })
-
+    let inputPrompt = ""
+    if (reply.length > 1) {
+      inputPrompt = await promptWithReply.format({ tweet, reply })
+    } else {
+      inputPrompt = await prompt.format({ tweet })
+    }
     const response = await llm.predict(inputPrompt)
 
     console.log("response: ", response)
